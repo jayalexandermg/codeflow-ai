@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Flask, Code, Languages, Wand2, RefreshCw, Cpu } from 'lucide-react';
+import { Beaker, Code, Languages, Wand2, RefreshCw, Cpu } from 'lucide-react';
 import { useReview } from '@/context/ReviewContext';
 
 export function LandingPage() {
@@ -80,7 +80,7 @@ export function LandingPage() {
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                     >
-                        <Flask className="w-5 h-5" />
+                        <Beaker className="w-5 h-5" />
                         Try Demo Review
                     </motion.button>
                     <motion.button
