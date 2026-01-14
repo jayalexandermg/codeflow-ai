@@ -97,7 +97,7 @@ export function RefactorSuccess({
                         className="text-sm text-stone-400 hover:text-white transition font-medium flex items-center gap-2"
                     >
                         <Plus className="w-4 h-4" />
-                        Review Different Code
+                        Scan Another Code Block
                     </button>
                 </div>
             </div>

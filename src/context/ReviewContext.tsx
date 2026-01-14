@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
 import type { ReviewResponse, ReviewState } from '@/shared/types';
-import { DEMO_CODE, DEMO_RESULT } from '@/shared/demo-data';
+import { getRandomDemo } from '@/shared/demo-data';
 
 interface ReviewContextType {
     state: ReviewState;
@@ -55,9 +55,16 @@ export function ReviewProvider({ children }: ReviewProviderProps) {
 
         try {
             if (isDemo) {
-                // Simulate API delay for demo
+                // Simulate API delay for demo - use stored demo result
                 await new Promise(resolve => setTimeout(resolve, 2500));
-                setState(prev => ({ ...prev, status: 'success', result: DEMO_RESULT }));
+                // The demo result should already be set by loadDemo
+                // Just mark as success with existing result if we have one
+                if (state.result) {
+                    setState(prev => ({ ...prev, status: 'success' }));
+                } else {
+                    const demo = getRandomDemo();
+                    setState(prev => ({ ...prev, status: 'success', result: demo.result }));
+                }
                 return;
             }
 
@@ -197,8 +204,11 @@ export function ReviewProvider({ children }: ReviewProviderProps) {
     };
 
     const loadDemo = () => {
-        setState(prev => ({ ...prev, code: DEMO_CODE }));
-        runReview(DEMO_CODE, true);
+        const demo = getRandomDemo();
+        setState(prev => ({ ...prev, code: demo.code, result: demo.result }));
+        setOriginalCode(demo.code);
+        setFixedCode(demo.code);
+        runReview(demo.code, true);
     };
 
     return (

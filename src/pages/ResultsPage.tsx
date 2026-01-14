@@ -9,11 +9,11 @@ import { IssuesTab } from '@/components/tabs/IssuesTab';
 import { SuggestionsTab } from '@/components/tabs/SuggestionsTab';
 import { ChangesTab } from '@/components/tabs/ChangesTab';
 import { ActionsTab } from '@/components/tabs/ActionsTab';
-import { RefactorSuccess } from '@/components/RefactorSuccess';
+import { ComparisonView } from '@/components/ComparisonView';
 import { FixConfirmationModal } from '@/components/FixConfirmationModal';
 import { Toast } from '@/components/Toast';
 import { FixProgress } from '@/components/FixProgress';
-import type { TabType } from '@/shared/types';
+import type { TabType, ReviewResponse } from '@/shared/types';
 
 export function ResultsPage() {
     const navigate = useNavigate();
@@ -30,8 +30,11 @@ export function ResultsPage() {
     } = useReview();
 
     const [activeTab, setActiveTab] = useState<TabType>('issues');
-    const [showRefactorSuccess, setShowRefactorSuccess] = useState(false);
-    const [appliedFixCount, setAppliedFixCount] = useState(0);
+
+    // Comparison view state
+    const [showComparison, setShowComparison] = useState(false);
+    const [previousResult, setPreviousResult] = useState<ReviewResponse | null>(null);
+    const [fixedIssueIds, setFixedIssueIds] = useState<string[]>([]);
 
     // Modal state
     const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -63,7 +66,6 @@ export function ResultsPage() {
     const getDiffLines = () => {
         const lines: Array<{ content: string; type: 'added' | 'removed' | 'unchanged' }> = [];
 
-        // Get selected issues with fixes
         result.issues
             .filter(issue => selectedFixes.has(issue.id) && issue.fix)
             .forEach(issue => {
@@ -97,76 +99,119 @@ export function ResultsPage() {
         setShowConfirmModal(false);
         setIsApplyingFixes(true);
 
+        // Store current result for comparison
+        setPreviousResult(result);
+        setFixedIssueIds(Array.from(selectedFixes));
+
         // Setup progress items
-        const items = Array.from(selectedFixes).map((id, index) => ({
-            id,
-            title: `Applying fix ${index + 1}`,
-            status: 'pending' as const,
-        }));
-        items.push({ id: 'rescan', title: 'Re-scanning code', status: 'pending' as const });
+        const items = [
+            { id: 'apply', title: 'Applying fixes to code', status: 'pending' as const },
+            { id: 'rescan', title: 'Re-scanning with AI', status: 'pending' as const },
+            { id: 'compare', title: 'Generating comparison', status: 'pending' as const },
+        ];
         setProgressItems(items);
         setShowProgress(true);
 
-        // Simulate progress
-        for (let i = 0; i < items.length; i++) {
-            await new Promise(resolve => setTimeout(resolve, 300));
-            setProgressItems(prev => prev.map((item, idx) => ({
-                ...item,
-                status: idx < i ? 'complete' : idx === i ? 'in-progress' : 'pending'
-            })));
-        }
+        // Step 1: Apply fixes
+        setProgressItems(prev => prev.map((item, idx) => ({
+            ...item,
+            status: idx === 0 ? 'in-progress' : 'pending'
+        })));
+        await new Promise(resolve => setTimeout(resolve, 500));
 
-        const count = selectedFixes.size;
         await applyFixes();
 
-        // Mark all complete
+        setProgressItems(prev => prev.map((item, idx) => ({
+            ...item,
+            status: idx === 0 ? 'complete' : idx === 1 ? 'in-progress' : 'pending'
+        })));
+
+        // Step 2: Re-scan with AI
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        // Actually run a new review on the fixed code
+        // For demo mode, we'll simulate improved results
+        await runReview(fixedCode, true); // true = demo mode
+
+        setProgressItems(prev => prev.map((item, idx) => ({
+            ...item,
+            status: idx <= 1 ? 'complete' : 'in-progress'
+        })));
+
+        // Step 3: Generate comparison
+        await new Promise(resolve => setTimeout(resolve, 500));
+
         setProgressItems(prev => prev.map(item => ({ ...item, status: 'complete' as const })));
 
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 300));
         setShowProgress(false);
         setIsApplyingFixes(false);
 
-        setAppliedFixCount(count);
-        setShowRefactorSuccess(true);
+        // Show comparison view
+        setShowComparison(true);
 
         // Show success toast
-        setToastMessage(`${count} fix${count > 1 ? 'es' : ''} applied successfully`);
+        setToastMessage('Fixes applied and code re-scanned!');
         setToastType('success');
         setShowToast(true);
         setTimeout(() => setShowToast(false), 3000);
     };
 
-    const handleRerunReview = async () => {
-        setShowRefactorSuccess(false);
-        setToastMessage('Re-scanning code...');
-        setToastType('info');
-        setShowToast(true);
-
-        navigate('/loading');
-        await runReview(fixedCode);
-        navigate('/results');
+    const handleNewReview = () => {
+        setShowComparison(false);
+        setPreviousResult(null);
+        setFixedIssueIds([]);
+        navigate('/input');
     };
 
-    const handleNewReview = () => {
-        navigate('/input');
+    const handleContinueFixing = () => {
+        setShowComparison(false);
+        setPreviousResult(null);
+        setFixedIssueIds([]);
+        // Stay on results page with the new results
     };
 
     const handleApplySingleFix = (fixId: string) => {
         if (!selectedFixes.has(fixId)) {
             toggleFix(fixId);
         }
-        // Show toast
         setToastMessage('Fix selected. Go to Changes tab to apply.');
         setToastType('info');
         setShowToast(true);
         setTimeout(() => setShowToast(false), 3000);
     };
 
-    const handleViewDiff = (actionId: string) => {
-        // Switch to changes tab
+    const handleViewDiff = () => {
         setActiveTab('changes');
-        // Could also scroll to the specific fix
     };
+
+    // Show comparison view if we just applied fixes
+    if (showComparison && previousResult) {
+        return (
+            <>
+                <Toast
+                    isVisible={showToast}
+                    message={toastMessage}
+                    type={toastType}
+                />
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="max-w-7xl mx-auto px-6 py-8"
+                >
+                    <ComparisonView
+                        previousResult={previousResult}
+                        currentResult={result}
+                        fixedIssueIds={fixedIssueIds}
+                        fixedCode={fixedCode}
+                        onNewReview={handleNewReview}
+                        onContinueFixing={handleContinueFixing}
+                    />
+                </motion.div>
+            </>
+        );
+    }
 
     return (
         <>
@@ -191,7 +236,7 @@ export function ResultsPage() {
             <FixProgress
                 isVisible={showProgress}
                 items={progressItems}
-                currentStep="Applying selected fixes..."
+                currentStep="Processing..."
             />
 
             <motion.div
@@ -269,38 +314,18 @@ export function ResultsPage() {
                     )}
                 </motion.div>
 
-                {/* Refactor Success Section */}
-                {showRefactorSuccess && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="mt-6"
-                    >
-                        <RefactorSuccess
-                            fixesApplied={appliedFixCount}
-                            confidenceBoost={appliedFixCount * 12}
-                            remainingIssues={Math.max(0, result.issues.length - appliedFixCount)}
-                            fixedCode={fixedCode}
-                            onRerunReview={handleRerunReview}
-                            onNewReview={handleNewReview}
-                        />
-                    </motion.div>
-                )}
-
                 {/* New Review Button */}
-                {!showRefactorSuccess && (
-                    <div className="mt-6 text-center">
-                        <motion.button
-                            onClick={handleNewReview}
-                            className="px-8 py-3 rounded-xl glass hover:bg-white/10 text-stone-300 hover:text-white transition font-medium flex items-center gap-2 mx-auto border border-white/10"
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                        >
-                            <Plus className="w-4 h-4" />
-                            Review Different Code
-                        </motion.button>
-                    </div>
-                )}
+                <div className="mt-6 text-center">
+                    <motion.button
+                        onClick={handleNewReview}
+                        className="px-8 py-3 rounded-xl glass hover:bg-white/10 text-stone-300 hover:text-white transition font-medium flex items-center gap-2 mx-auto border border-white/10"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                    >
+                        <Plus className="w-4 h-4" />
+                        Scan Another Code Block
+                    </motion.button>
+                </div>
             </motion.div>
         </>
     );
