@@ -1,0 +1,28 @@
+{
+    "name": "codeflow-cli",
+    "version": "1.0.0",
+    "description": "AI-powered code review CLI - Plain English explanations for vibe coders",
+    "main": "index.js",
+    "type": "module",
+    "bin": {
+        "codeflow": "./index.js"
+    },
+    "scripts": {
+        "start": "node index.js"
+    },
+    "keywords": [
+        "code-review",
+        "ai",
+        "claude",
+        "linter",
+        "vibe-coding"
+    ],
+    "author": "",
+    "license": "MIT",
+    "dependencies": {
+        "@anthropic-ai/sdk": "^0.34.0"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    }
+}
