@@ -1,6 +1,5 @@
 // Netlify Function: /api/apply-fix
 // Applies selected fixes to code using Claude API
-// See ADR: types.ts for ApplyFixResponse interface
 
 import Anthropic from '@anthropic-ai/sdk';
 
@@ -8,7 +7,7 @@ const anthropic = new Anthropic({
     apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-// CORS headers for cross-origin requests
+// CORS headers
 const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -21,23 +20,22 @@ const SYSTEM_PROMPT = `You are an expert code fixer. Your job is to apply the re
 
 You will receive:
 1. Original code
-2. A list of fix IDs to apply (these reference issues, suggestions, or changes from a previous review)
+2. A list of fixes to apply (each with before/after code snippets)
 
 Your response MUST be valid JSON matching this exact structure:
 {
   "fixedCode": "<the complete code with all requested fixes applied>",
-  "appliedFixes": ["<id of fix that was applied>", ...],
-  "remainingIssues": <number of issues that still need attention>
+  "appliedCount": <number of fixes successfully applied>,
+  "appliedFixes": ["<id of fix applied>", ...]
 }
 
 Guidelines:
-1. Apply ONLY the fixes that were requested by ID
+1. Apply ONLY the fixes that were requested
 2. Maintain the original code structure and style
-3. If a fix ID doesn't make sense for the code, skip it (don't include in appliedFixes)
+3. If a fix before/after doesn't match the code exactly, try to apply it intelligently
 4. The fixedCode should be complete and runnable
-5. remainingIssues should estimate how many code quality issues remain
-6. Preserve comments and formatting where possible
-7. If no fixes could be applied, return the original code unchanged
+5. Preserve comments and formatting where possible
+6. If no fixes could be applied, return the original code unchanged
 
 IMPORTANT: Return ONLY valid JSON. No markdown, no explanations, just the JSON object.`;
 
@@ -57,7 +55,7 @@ export async function handler(event) {
 
     try {
         const body = JSON.parse(event.body || '{}');
-        const { code, fixIds } = body;
+        const { code, fixes, fixIds } = body;
 
         // Input validation
         if (!code || typeof code !== 'string') {
@@ -70,12 +68,15 @@ export async function handler(event) {
             };
         }
 
-        if (!fixIds || !Array.isArray(fixIds) || fixIds.length === 0) {
+        // Support both fixes array and fixIds
+        const fixesToApply = fixes || [];
+
+        if (fixesToApply.length === 0 && (!fixIds || fixIds.length === 0)) {
             return {
                 statusCode: 400,
                 headers,
                 body: JSON.stringify({
-                    error: 'Missing or invalid fixIds. Please specify which fixes to apply.',
+                    error: 'Missing fixes. Please specify which fixes to apply.',
                 }),
             };
         }
@@ -91,21 +92,25 @@ export async function handler(event) {
         }
 
         // Build the user message
-        const userMessage = `Please apply these fixes to the code:
+        let userMessage = `Please apply these fixes to the code:\n\n`;
 
-Fix IDs to apply: ${JSON.stringify(fixIds)}
+        if (fixesToApply.length > 0) {
+            userMessage += `Fixes to apply:\n`;
+            fixesToApply.forEach((fix, i) => {
+                userMessage += `\nFix ${i + 1}:\n`;
+                userMessage += `Before:\n\`\`\`\n${fix.before}\n\`\`\`\n`;
+                userMessage += `After:\n\`\`\`\n${fix.after}\n\`\`\`\n`;
+            });
+        } else if (fixIds) {
+            userMessage += `Fix IDs to apply: ${JSON.stringify(fixIds)}\n`;
+        }
 
-Original code:
-\`\`\`
-${code}
-\`\`\`
-
-Apply the fixes and return the result as JSON.`;
+        userMessage += `\nOriginal code:\n\`\`\`\n${code}\n\`\`\`\n\nApply the fixes and return the result as JSON.`;
 
         // Call Claude API
         const response = await anthropic.messages.create({
-            model: 'claude-3-5-sonnet-20241022',
-            max_tokens: 4096,
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 8192,
             messages: [
                 {
                     role: 'user',
@@ -115,17 +120,27 @@ Apply the fixes and return the result as JSON.`;
             system: SYSTEM_PROMPT,
         });
 
-        // Extract the text content from Claude's response
+        // Extract text content
         const textContent = response.content.find((block) => block.type === 'text');
         if (!textContent || !textContent.text) {
             throw new Error('No text response from Claude');
         }
 
-        // Parse the JSON response
+        // Parse JSON response
         let fixResult;
         try {
-            // Try to extract JSON from the response
-            const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
+            let jsonText = textContent.text.trim();
+            // Remove markdown if present
+            if (jsonText.startsWith('```json')) {
+                jsonText = jsonText.slice(7);
+            }
+            if (jsonText.startsWith('```')) {
+                jsonText = jsonText.slice(3);
+            }
+            if (jsonText.endsWith('```')) {
+                jsonText = jsonText.slice(0, -3);
+            }
+            const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
             if (!jsonMatch) {
                 throw new Error('No JSON found in response');
             }
@@ -135,15 +150,14 @@ Apply the fixes and return the result as JSON.`;
             throw new Error('Failed to parse fix results');
         }
 
-        // Validate the response structure
+        // Validate response
         if (typeof fixResult.fixedCode !== 'string') {
             throw new Error('Invalid response structure from Claude');
         }
 
-        // Ensure arrays and numbers exist
+        // Ensure fields exist
+        fixResult.appliedCount = typeof fixResult.appliedCount === 'number' ? fixResult.appliedCount : fixesToApply.length;
         fixResult.appliedFixes = fixResult.appliedFixes || [];
-        fixResult.remainingIssues =
-            typeof fixResult.remainingIssues === 'number' ? fixResult.remainingIssues : 0;
 
         return {
             statusCode: 200,
@@ -153,7 +167,6 @@ Apply the fixes and return the result as JSON.`;
     } catch (error) {
         console.error('Apply-fix API error:', error);
 
-        // User-friendly error messages
         let userMessage = 'Something went wrong while applying fixes. Please try again.';
 
         if (error.message?.includes('API key')) {

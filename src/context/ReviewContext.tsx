@@ -106,21 +106,80 @@ export function ReviewProvider({ children }: ReviewProviderProps) {
         setSelectedFixes(new Set());
     };
 
-    const applyFixes = () => {
+    const applyFixes = async () => {
         if (!state.result || selectedFixes.size === 0) return;
 
-        // For now, just update fixedCode based on selected fixes
-        // In production, this would call /api/apply-fix
-        let newCode = originalCode;
+        // Collect the fixes to apply
+        const fixesToApply: Array<{ before: string; after: string }> = [];
 
-        // Apply fixes logic here (simplified for demo)
-        state.result.proposedChanges
-            .filter(change => selectedFixes.has(change.id))
-            .forEach(change => {
-                newCode = change.fixedCode || newCode;
+        // Gather before/after from issues
+        state.result.issues
+            .filter(issue => selectedFixes.has(issue.id) && issue.fix)
+            .forEach(issue => {
+                if (issue.fix) {
+                    fixesToApply.push({
+                        before: issue.fix.before,
+                        after: issue.fix.after,
+                    });
+                }
             });
 
-        setFixedCode(newCode);
+        // Gather before/after from suggestions
+        state.result.suggestions
+            .filter(suggestion => selectedFixes.has(suggestion.id) && suggestion.before && suggestion.after)
+            .forEach(suggestion => {
+                if (suggestion.before && suggestion.after) {
+                    fixesToApply.push({
+                        before: suggestion.before,
+                        after: suggestion.after,
+                    });
+                }
+            });
+
+        // Gather before/after from proposed changes
+        state.result.proposedChanges
+            .filter(change => selectedFixes.has(change.id) && change.before && change.after)
+            .forEach(change => {
+                if (change.before && change.after) {
+                    fixesToApply.push({
+                        before: change.before,
+                        after: change.after,
+                    });
+                }
+            });
+
+        if (fixesToApply.length === 0) {
+            // Fallback: just use the fixedCode from first selected change
+            const firstChange = state.result.proposedChanges.find(c => selectedFixes.has(c.id));
+            if (firstChange?.fixedCode) {
+                setFixedCode(firstChange.fixedCode);
+            }
+            setSelectedFixes(new Set());
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/apply-fix', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: originalCode, fixes: fixesToApply }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to apply fixes');
+            }
+
+            const result = await response.json();
+            setFixedCode(result.fixedCode);
+        } catch (error) {
+            // Fallback to simple string replacement
+            let newCode = originalCode;
+            fixesToApply.forEach(fix => {
+                newCode = newCode.replace(fix.before, fix.after);
+            });
+            setFixedCode(newCode);
+        }
+
         setSelectedFixes(new Set());
     };
 
