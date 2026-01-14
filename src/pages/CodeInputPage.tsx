@@ -37,13 +37,8 @@ export function CodeInputPage() {
         setCode(localCode);
         navigate('/loading');
 
-        try {
-            await runReview(localCode);
-            navigate('/results');
-        } catch (error) {
-            // Error will be handled by context, just navigate back
-            navigate('/input');
-        }
+        // Start review - LoadingPage will handle navigation based on state
+        runReview(localCode);
     };
 
     const placeholder = `// Paste or type your code here...
