@@ -1,24 +1,52 @@
-// Placeholder - User will provide actual component code
-export function Header() {
+import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { HelpCircle, Home, Bot } from 'lucide-react';
+
+interface HeaderProps {
+    onOpenHelp?: () => void;
+}
+
+export function Header({ onOpenHelp }: HeaderProps) {
+    const navigate = useNavigate();
+
     return (
-        <header className="fixed top-0 left-0 right-0 z-50 px-6 py-4 flex items-center justify-between bg-cf-dark-900/80 backdrop-blur-sm">
-            <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-cf-teal-500 to-cf-orange-500 rounded-xl flex items-center justify-center">
-                    <span className="text-xl">🤖</span>
-                </div>
-                <div>
-                    <h1 className="text-lg font-semibold text-white">CodeFlow AI</h1>
-                    <p className="text-xs text-gray-400">Agent Ready • Intelligent Code Review</p>
+        <motion.header
+            initial={{ y: -20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="glass-strong sticky top-0 z-50"
+        >
+            <div className="max-w-7xl mx-auto px-6 py-4">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="agent-avatar">
+                            <Bot className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                            <h1 className="text-xl font-bold gradient-text">CodeFlow AI</h1>
+                            <p className="text-xs text-stone-400 flex items-center gap-2">
+                                <span className="status-dot bg-emerald-500" />
+                                Agent Ready • Intelligent Code Review
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={onOpenHelp}
+                            className="w-10 h-10 rounded-xl glass hover:bg-white/10 flex items-center justify-center text-stone-400 hover:text-white transition"
+                            title="Learn about CodeFlow AI"
+                        >
+                            <HelpCircle className="w-5 h-5" />
+                        </button>
+                        <button
+                            onClick={() => navigate('/')}
+                            className="px-5 py-2.5 rounded-xl glass hover:bg-white/10 text-stone-300 hover:text-white transition font-medium flex items-center gap-2"
+                        >
+                            <Home className="w-4 h-4" />
+                            Home
+                        </button>
+                    </div>
                 </div>
             </div>
-            <nav className="flex items-center gap-4">
-                <button className="p-2 rounded-full hover:bg-cf-dark-700">
-                    <span className="text-gray-400">?</span>
-                </button>
-                <a href="/" className="flex items-center gap-2 px-4 py-2 rounded-lg bg-cf-dark-700 hover:bg-cf-dark-600 text-white">
-                    🏠 Home
-                </a>
-            </nav>
-        </header>
-    )
+        </motion.header>
+    );
 }
