@@ -42,6 +42,7 @@ Evaluate code across: SECURITY, BUGS & RELIABILITY, ERROR HANDLING, PERFORMANCE,
 - Start at 100, deduct based on findings
 - Critical security: -25 each, Critical bug: -20 each
 - Warning: -5 to -10 each, Readability: -2 to -5 each
+- CATEGORY SCORES: If SQL injection found, security score should be LOW (10-30). If code is secure, security should be HIGH (85-100). Same for other categories.
 
 ## Output Format
 Return ONLY valid JSON:
