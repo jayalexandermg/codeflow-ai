@@ -9,13 +9,14 @@ export interface ReviewRequest {
     filename?: string;
 }
 
-// Response from the review API
+// Response from the review API - aligned with Claude output
 export interface ReviewResponse {
     score: number; // 0-100 overall confidence score
+    summary?: string; // one sentence assessment
     categories: CategoryScores;
     issues: Issue[];
     suggestions: Suggestion[];
-    proposedChanges: Change[];
+    proposedChanges: Change[]; // Derived from issues.fix
     actionItems: ActionItem[];
 }
 
@@ -29,34 +30,45 @@ export interface CategoryScores {
 export interface Issue {
     id: string;
     severity: 'critical' | 'warning';
-    line: number;
+    category?: 'security' | 'bugs' | 'errorHandling' | 'performance' | 'readability';
+    line: number | null;
     title: string;
     description: string; // plain English explanation
+    fix?: {
+        description: string;
+        before: string;
+        after: string;
+    };
 }
 
 export interface Suggestion {
     id: string;
+    category?: 'performance' | 'readability' | 'bestPractices';
     title: string;
     description: string; // plain English explanation
-    codeSnippet: string; // the suggested improvement
+    codeSnippet?: string; // the suggested improvement (for display)
+    before?: string;
+    after?: string;
 }
 
 export interface Change {
     id: string;
     title: string;
     description: string;
-    diff: string;        // unified diff format for display
-    fixedCode: string;   // the complete fixed code
-    lineStart: number;
-    lineEnd: number;
+    diff?: string;        // unified diff format for display
+    fixedCode?: string;   // the complete fixed code
+    before?: string;      // original code snippet
+    after?: string;       // fixed code snippet
+    lineStart?: number;
+    lineEnd?: number;
 }
 
 export interface ActionItem {
     id: string;
     priority: 'high' | 'low';
     title: string;
-    description: string;
-    relatedIssueId?: string;
+    description?: string;
+    relatedIssueId?: string | null;
     relatedSuggestionId?: string;
     relatedChangeId?: string;
 }
@@ -64,14 +76,19 @@ export interface ActionItem {
 // Request to apply fixes
 export interface ApplyFixRequest {
     code: string;
-    fixIds: string[];  // IDs of changes/action items to apply
+    fixIds?: string[];  // IDs of changes/action items to apply
+    fixes?: Array<{
+        before: string;
+        after: string;
+    }>;
 }
 
 // Response after applying fixes
 export interface ApplyFixResponse {
     fixedCode: string;
-    appliedFixes: string[];
-    remainingIssues: number;
+    appliedFixes?: string[];
+    appliedCount?: number;
+    remainingIssues?: number;
 }
 
 // UI State types
