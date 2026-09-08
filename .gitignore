@@ -27,3 +27,10 @@ npm-debug.log*
 
 # Testing
 coverage/
+
+# Claude Code session data and hook logs
+.claude/
+logs/
+
+# Debug screenshot showing a live ANTHROPIC_API_KEY value — never commit
+docs/error/image.png
